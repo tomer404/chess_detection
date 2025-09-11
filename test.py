@@ -111,9 +111,7 @@ def test_folder_accuracy(folder_num):
         if(accuracy[i] == 0):
             cnt+=1
         cnt2 += accuracy[i]
-    print(f"The number of mistakes is {cnt2}")
-    print(f"The number of correctly detected images is {cnt}")
-    print(accuracy)
+    return cnt, cnt2
 
 def print_folder_fen(folder_num):
     folder_path = create_folder_path(folder_num)
@@ -122,5 +120,14 @@ def print_folder_fen(folder_num):
     for i in range(1):
         fens[i] = pos_to_fen(main(create_file_path(i, folder_num), 0.2, 0.3))
     print(fens)
+
 if __name__ == "__main__":
-    test_folder_accuracy(3)
+    sum = 0
+    sum2 = 0
+    cnt_per_folder = {}
+    for i in range(2, 11):
+        cnt, cnt2 = test_folder_accuracy(i)
+        sum += cnt
+        sum2 += cnt2
+        cnt_per_folder[i] = (cnt, cnt2)
+    print(cnt_per_folder)

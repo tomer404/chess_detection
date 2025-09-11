@@ -6,7 +6,7 @@ import math
 import torch
 from collections import defaultdict
 model = YOLO(r"runs/detect/train5/weights/best.pt")
-pieces_model = YOLO(r"runs2/detect/train4/weights/best.pt")
+pieces_model = YOLO(r"runs2/detect/train6/weights/best.pt")
 
 def create_file_path(img_num, folder_num):
     if img_num<10:
@@ -229,27 +229,22 @@ def main(path_to_img, conf_score, iou_score):
         elif i == 3 or i == 9:
             pieces_coords[i] = pieces_coords[i][:8]
         '''
-        if i in {1, 3, 7, 9}:
-            pieces_coords_final = []
-            for j in range(len(pieces_coords[i])):
-                piece_coord = pieces_coords[i][j]
-                square = get_square_of_piece(piece_coord, img.shape, corners, bl_y, bl_x, cropped_shape)
-                if square is not None:  
-                    pieces_coords_final.append(piece_coord)
-            if i in {1, 7}:
-                pieces_coords_final = pieces_coords_final[:1]
-            else:
-                pieces_coords_final = pieces_coords_final[:8]
-            for j in range(len(pieces_coords_final)):
-                square = get_square_of_piece(pieces_coords_final[j], img.shape, corners, bl_y, bl_x, cropped_shape)
-                if square is not None:  
-                    square_to_piece[square].append((i, j))
-        else:
-            for j in range(len(pieces_coords[i])):
-                piece_coord = pieces_coords[i][j]
-                square = get_square_of_piece(piece_coord, img.shape, corners, bl_y, bl_x, cropped_shape)
-                if square is not None:  
-                    square_to_piece[square].append((i,j))
+        # build (coord, orig_idx) list while filtering
+        kept = []
+        for orig_j, piece_coord in enumerate(pieces_coords[i]):
+            square = get_square_of_piece(piece_coord, img.shape, corners, bl_y, bl_x, cropped_shape)
+            if square is not None:
+                kept.append((piece_coord, orig_j))
+
+        # cap
+        limit = 1 if i in {1,7} else 8
+        kept = kept[:limit]
+
+        # add using original indices
+        for piece_coord, orig_j in kept:
+            square = get_square_of_piece(piece_coord, img.shape, corners, bl_y, bl_x, cropped_shape)
+            if square is not None:
+                square_to_piece[square].append((i, orig_j))
 
     # handling collisions - if there are multiple pieces detected on the same square,
     # we're taking only the one with the highest confidence value

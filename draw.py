@@ -77,7 +77,7 @@ def draw_origin_point(path_to_img):
 
 import cv2
 
-def draw_grid(img, rows=8, cols=8, color=(0, 255, 0), thickness=1, line_type=cv2.LINE_AA):
+def draw_grid(img, rows=8, cols=8, color=(0, 255, 0), thickness=3, line_type=cv2.LINE_AA):
     """
     Draws grid lines on a copy of `img` that divide it into `rows` x `cols` equal parts.
     By default, makes an 8x8 grid.
@@ -201,4 +201,56 @@ def warp_quad(path_to_img, quad_pts, ones, eights, scale=1.0, margin_ratio=0, ma
     size = max(h, w)
     #square_img = cv2.resize(warped, (size, size))
     return warped
-save_cropped_files(1, "cropped imgs")
+
+def draw_detected_boxes_and_classes(img, boxes, boxes_names):
+    for box in boxes:
+        coords = box.xyxy.cpu().numpy()
+        cls = box.cls.cpu().numpy()
+        box_name = boxes_names[cls]
+        cv2.rectangle(img, (int(coords[0]), int(coords[3])), (int(coords[2]), int(coords[1])) ,color=(255, 0, 0), thickness= -1)
+        cv2.putText(img, box_name, (int(coords[2]), int(coords[1])), color= (0, 0, 0), thickness=-1)
+    cv2.namedWindow("Board", cv2.WINDOW_NORMAL)  
+    cv2.imshow("Board", img)
+
+    cv2.resizeWindow("Board", 800, 800)
+
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+def draw_corners_with_names(path_to_img):
+    img = cv2.imread(path_to_img)
+    results = model.predict(source=path_to_img, conf = 0, iou = 0.0, agnostic_nms = False)
+    r = results[0]
+    boxes = r.boxes
+    # Sorting the values of the boxes by confidence using torch
+    conf_vals = boxes.conf.view(-1)
+    order = torch.argsort(conf_vals, descending = True)
+    boxes_sorted = boxes[order]
+    class_ids = boxes_sorted.cls.cpu().numpy()
+    coords = boxes_sorted.xyxy.cpu().numpy()
+    # get the boxes coordinates of the corners, the 1s and the 8s rows
+    corners_coords = coords[class_ids == 0]
+    eights_coords = coords[class_ids == 1]
+    ones_coords = coords[class_ids == 2]
+    if len(corners_coords) >= 4:
+        corners_coords = corners_coords[:4]
+    if len(eights_coords) >= 2:
+        eights_coords = eights_coords[:2]
+    if len(ones_coords) >= 2:
+        ones_coords = ones_coords[:2]
+    for corner in corners_coords:
+        cv2.rectangle(img, (int(corner[0]), int(corner[3])), (int(corner[2]), int(corner[1])) ,color=(255, 0, 0), thickness= 5)
+        cv2.putText(img, "corner", (int(corner[2]), int(corner[1])), color= (0, 0, 0), thickness=5, fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=3)
+    for eight in eights_coords:
+        cv2.rectangle(img, (int(eight[0]), int(eight[3])), (int(eight[2]), int(eight[1])) ,color=(255, 0, 0), thickness= 5)
+        cv2.putText(img, "eight", (int(eight[2]), int(eight[1])), color= (0, 0, 0), thickness=5, fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=3)
+    for one in eights_coords:
+        cv2.rectangle(img, (int(one[0]), int(one[3])), (int(one[2]), int(one[1])) ,color=(255, 0, 0), thickness= 5)
+        cv2.putText(img, "one", (int(one[2]), int(one[1])), color= (0, 0, 0), thickness=5, fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=3)
+    cv2.namedWindow("Board", cv2.WINDOW_NORMAL)  
+    cv2.imshow("Board", img)
+
+    cv2.resizeWindow("Board", 800, 800)
+
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+draw_warped_point(create_file_path(16, 0))
