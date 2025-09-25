@@ -5,8 +5,8 @@ import numpy as np
 import math
 import torch
 from collections import defaultdict
-model = YOLO(r"runs/detect/train5/weights/best.pt")
-pieces_model = YOLO(r"runs2/detect/train6/weights/best.pt")
+model = YOLO(r"runs/detect/train8/weights/best.pt")
+pieces_model = YOLO(r"runs2/detect/train13/weights/best.pt")
 
 def create_file_path(img_num, folder_num):
     if img_num<10:
@@ -56,6 +56,17 @@ def detect_corners_and_orientation(path_to_img):
         eights_coords = eights_coords[:2]
     if len(ones_coords) >= 2:
         ones_coords = ones_coords[:2]
+    if len(ones_coords) == 2 and len(eights_coords) == 2:
+        conf = boxes_sorted.conf.cpu().numpy()
+        eights_conf = conf[class_ids == 1]
+        eights_conf = eights_conf[:2]
+        ones_conf = conf[class_ids == 2]
+        ones_conf = ones_conf[:2]
+        if(ones_conf[1] > eights_conf[1]):
+            eights_coords = []
+        else:
+            ones_coords = []
+    
     # get the coordinates of the middle point of the boxes
     corners_coords = mid_point_of_boxes(corners_coords)
     ones_coords = mid_point_of_boxes(ones_coords)
@@ -182,11 +193,11 @@ def check_if_inside(y, x, h, w):
     return not (x > w or x < 0 or y > h or y < 0)
 
 
-def get_square_of_piece(coords, shape, corners, bl_y, bl_x, cropped_shape):
+def get_square_of_piece(coords, shape, corners):
     x1, y1, x2, y2 = coords
-    base_midpoint = [y2, (x1+x2) // 2]
-    origin_point = get_origin_point(base_midpoint, shape, bl_y, bl_x, cropped_shape)
-    warped_point = get_point_in_board(origin_point, shape, corners)
+    base_midpoint = [(x1+x2) // 2, y2]
+    #origin_point = get_origin_point(base_midpoint, shape, bl_y, bl_x, cropped_shape)
+    warped_point = get_point_in_board(base_midpoint, shape, corners)
     maxW, maxH = get_dst_size(corners)
     x, y = warped_point
     if check_if_inside(y, x, maxH-1, maxW-1):
@@ -215,10 +226,10 @@ def main(path_to_img, conf_score, iou_score):
     corners, ones, eights = detect_corners_and_orientation(path_to_img)
     corners = order_corners(corners, ones, eights)
     img = cv2.imread(path_to_img)
-    cropped_img, (bl_y, bl_x), cropped_shape = crop_rectangle(path_to_img, corners, margin=220)
-    pieces_coords, pieces_conf = detect_pieces(cropped_img, conf_score, iou_score)
-    cls_to_piece_type = {0: "black-bishop", 1: "black-king", 2: "black-knight", 3: "black-pawn", 4: "black-queen", 5: "black-rook",
-                     6: "white-bishop", 7: "white-king", 8: "white-knight", 9: "white-pawn", 10: "white-queen", 11: "white-rook"}
+    #cropped_img, (bl_y, bl_x), cropped_shape = crop_rectangle(path_to_img, corners, margin=220)
+    pieces_coords, pieces_conf = detect_pieces(img, conf_score, iou_score)
+    cls_to_piece_type = {0: "white-pawn",  1: "white-rook",  2: "white-knight", 3: "white-bishop", 4: "white-queen", 5: "white-king",
+    6: "black-pawn", 7: "black-rook", 8: "black-knight", 9: "black-bishop", 10: "black-queen", 11: "black-king"}
     num_to_file = {0:"a", 1:"b", 2:"c", 3: "d", 4: "e", 5: "f", 6: "g",7: "h"}
     square_to_piece = defaultdict(list) # multi values dictionary
     square_to_piece_final = {}
@@ -232,17 +243,21 @@ def main(path_to_img, conf_score, iou_score):
         # build (coord, orig_idx) list while filtering
         kept = []
         for orig_j, piece_coord in enumerate(pieces_coords[i]):
-            square = get_square_of_piece(piece_coord, img.shape, corners, bl_y, bl_x, cropped_shape)
+            square = get_square_of_piece(piece_coord, img.shape, corners)
             if square is not None:
                 kept.append((piece_coord, orig_j))
 
         # cap
-        limit = 1 if i in {1,7} else 8
+        piece_caps = {
+            0:8, 1:2, 2:2, 3:2, 4:1, 5:1,   # white: pawns, rooks, knights, bishops, queen, king
+            6:8, 7:2, 8:2, 9:2, 10:1, 11:1  # black: same order
+        }
+        limit = piece_caps.get(i, 8)
         kept = kept[:limit]
 
         # add using original indices
         for piece_coord, orig_j in kept:
-            square = get_square_of_piece(piece_coord, img.shape, corners, bl_y, bl_x, cropped_shape)
+            square = get_square_of_piece(piece_coord, img.shape, corners)
             if square is not None:
                 square_to_piece[square].append((i, orig_j))
 
@@ -258,4 +273,25 @@ def main(path_to_img, conf_score, iou_score):
         square_str = num_to_file[square[0]]+str(8-square[1])
         square_to_piece_final[square_str] = cls_to_piece_type[piece_with_max_conf[0]]
     return square_to_piece_final
-        
+def pos_to_fen(pos_map, side_to_move):
+    fen = ""
+    piece_to_notation = {"black-bishop": "b","black-king": "k","black-knight": "n","black-pawn": "p","black-queen": "q","black-rook": "r",
+                    "white-bishop": "B","white-king": "K","white-knight": "N","white-pawn": "P", "white-queen": "Q", "white-rook": "R"}
+    for row in range(8, 0, -1):
+        cnt_empty = 0
+        for col in ["a", "b", "c", "d", "e", "f", "g", "h"]:
+            piece = pos_map.get(col+str(row))
+            if piece is None:
+                cnt_empty += 1
+            else:
+                if(cnt_empty != 0):
+                    fen += str(cnt_empty)
+                    cnt_empty = 0
+                fen += piece_to_notation[piece]
+        if cnt_empty != 0:
+            fen += str(cnt_empty)
+        if row != 1:
+            fen += "/"
+    fen += f" {side_to_move} KQkq - 0 0"
+    return fen
+#print(pos_to_fen(main(create_file_path(0, 0), 0.2, 0.5)))

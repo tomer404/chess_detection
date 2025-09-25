@@ -216,6 +216,8 @@ def draw_detected_boxes_and_classes(img, boxes, boxes_names):
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
+
+
 def draw_corners_with_names(path_to_img):
     img = cv2.imread(path_to_img)
     results = model.predict(source=path_to_img, conf = 0, iou = 0.0, agnostic_nms = False)
@@ -253,4 +255,118 @@ def draw_corners_with_names(path_to_img):
 
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-draw_warped_point(create_file_path(16, 0))
+
+
+def draw_piece_detections(
+    img_input,
+    conf_score=0.25,
+    iou_score=0.45,
+    display_size=800,          # final shown board size (pixels)
+    text_scale=0.30,           # much smaller labels
+    text_thickness=1,          # thin text
+    box_thickness=1,           # thin boxes
+    save_path=None,
+    show=False,
+):
+    """
+    Run pieces_model on an image and draw bounding boxes + labels on an 800x800 canvas.
+
+    Args:
+        img_input: str path to image OR numpy array (BGR).
+        conf_score, iou_score: YOLO thresholds.
+        display_size: final width==height of the shown board (default 800).
+        text_scale: OpenCV font scale for labels (smaller by default).
+        text_thickness: OpenCV thickness for label text.
+        box_thickness: OpenCV thickness for rectangles.
+        save_path: optional path to save the 800x800 annotated image.
+        show: if True, opens a window with the 800x800 annotated image.
+
+    Returns:
+        display_img (numpy array, BGR, shape=(display_size, display_size, 3)),
+        detections (list of dicts with keys: name, conf, bbox [x1,y1,x2,y2] in ORIGINAL coords, class_id)
+    """
+    cls_to_piece_type = {
+        0:"white-pawn", 1:"white-rook", 2:"white-knight", 3:"white-bishop",
+        4:"white-queen",5:"white-king", 6:"black-pawn",   7:"black-rook",
+        8:"black-knight",9:"black-bishop",10:"black-queen",11:"black-king"
+    }
+
+    # Load image
+    if isinstance(img_input, str):
+        img = cv2.imread(img_input)
+        if img is None:
+            raise ValueError(f"Could not read image from path: {img_input}")
+    else:
+        img = img_input.copy()
+
+    H, W = img.shape[:2]
+
+    # Run detection on original image
+    results = pieces_model.predict(
+        source=img, conf=conf_score, iou=iou_score, agnostic_nms=False, verbose=False
+    )
+    r = results[0]
+    boxes = r.boxes
+
+    # Prepare 800x800 canvas for drawing
+    disp = cv2.resize(img, (display_size, display_size), interpolation=cv2.INTER_LINEAR)
+    sx = display_size / float(W)
+    sy = display_size / float(H)
+
+    detections = []
+    if boxes is not None and len(boxes) > 0:
+        xyxy = boxes.xyxy.cpu().numpy()
+        cls_ids = boxes.cls.cpu().numpy().astype(int)
+        confs  = boxes.conf.cpu().numpy()
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        def color_for(cid: int):
+            # white = green, black = magenta (BGR)
+            return (60, 220, 60) if cid <= 5 else (220, 60, 220)
+
+        for (x1, y1, x2, y2), cid, conf in zip(xyxy, cls_ids, confs):
+            # scale box to 800x800 canvas
+            X1 = int(round(x1 * sx)); Y1 = int(round(y1 * sy))
+            X2 = int(round(x2 * sx)); Y2 = int(round(y2 * sy))
+
+            name = cls_to_piece_type.get(cid, f"class-{cid}")
+            label = f"{name} {conf:.2f}"
+
+            # box
+            col = color_for(cid)
+            cv2.rectangle(disp, (X1, Y1), (X2, Y2), col, box_thickness)
+
+            # label background (compact)
+            (tw, th), base = cv2.getTextSize(label, font, text_scale, text_thickness)
+            th_total = th + base
+            y1_txt = Y1 - th_total - 2
+            y2_txt = Y1 - 2
+            if y1_txt < 0:
+                y1_txt = Y1 + 2
+                y2_txt = Y1 + th_total + 2
+            x1_txt = X1
+            x2_txt = X1 + tw + 6
+
+            # clamp to canvas
+            x1_txt = max(0, x1_txt); y1_txt = max(0, y1_txt)
+            x2_txt = min(display_size - 1, x2_txt); y2_txt = min(display_size - 1, y2_txt)
+
+            cv2.rectangle(disp, (x1_txt, y1_txt), (x2_txt, y2_txt), col, -1)
+            cv2.putText(disp, label, (x1_txt + 3, y2_txt - base - 2),
+                        font, text_scale, (255, 255, 255), text_thickness, cv2.LINE_AA)
+
+            detections.append({
+                "name": name,
+                "conf": float(conf),
+                "bbox": [float(x1), float(y1), float(x2), float(y2)],  # original coords
+                "class_id": int(cid),
+            })
+
+    if save_path:
+        cv2.imwrite(save_path, disp)
+    if show:
+        cv2.imshow("board (800x800)", disp); cv2.waitKey(0); cv2.destroyAllWindows()
+
+    return disp, detections
+draw_warped_point(create_file_path(38, 33))

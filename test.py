@@ -110,8 +110,19 @@ def test_folder_accuracy(folder_num):
         accuracy[i] = num_of_incorrect_pieces(create_file_path(i, folder_num), 0.2, 0.3)
         if(accuracy[i] == 0):
             cnt+=1
-        cnt2 += accuracy[i]
-    return cnt, cnt2
+        if(accuracy[i] <= 1):
+            cnt2 += 1
+    return len(files), cnt, cnt2, accuracy
+
+def test_folders_accuracy(folder_nums):
+    sum = 0
+    sum2 = 0
+    sum3 = 0 
+    for i in folder_nums:
+        num_files, cnt, cnt2, _ = test_folder_accuracy(i)
+        sum +=cnt; sum2+=cnt2; sum3 += num_files
+    print(f"percentage of correct: {sum/sum3}")
+    print(f"percentage of fewer than 1 mistakes: {sum2/sum3}")
 
 def print_folder_fen(folder_num):
     folder_path = create_folder_path(folder_num)
@@ -122,12 +133,4 @@ def print_folder_fen(folder_num):
     print(fens)
 
 if __name__ == "__main__":
-    sum = 0
-    sum2 = 0
-    cnt_per_folder = {}
-    for i in range(2, 11):
-        cnt, cnt2 = test_folder_accuracy(i)
-        sum += cnt
-        sum2 += cnt2
-        cnt_per_folder[i] = (cnt, cnt2)
-    print(cnt_per_folder)
+    print(test_folder_accuracy(33))
