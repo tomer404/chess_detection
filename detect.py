@@ -5,8 +5,8 @@ import numpy as np
 import math
 import torch
 from collections import defaultdict
-model = YOLO(r"runs/detect/train8/weights/best.pt")
-pieces_model = YOLO(r"runs2/detect/train13/weights/best.pt")
+model = YOLO(r"runs/detect/trainNano/weights/best.pt")
+pieces_model = YOLO(r"runs2/detect/train21/weights/best.pt")
 
 def create_file_path(img_num, folder_num):
     if img_num<10:
@@ -35,7 +35,6 @@ def mid_point_of_boxes(coords):
         new_coords.append([int((x1+x2)//2), int((y1+y2)//2)])
     return new_coords
 
-
 def detect_corners_and_orientation(path_to_img):
     results = model.predict(source=path_to_img, conf = 0, iou = 0.0, agnostic_nms = False)
     r = results[0]
@@ -47,20 +46,17 @@ def detect_corners_and_orientation(path_to_img):
     class_ids = boxes_sorted.cls.cpu().numpy()
     coords = boxes_sorted.xyxy.cpu().numpy()
     # get the boxes coordinates of the corners, the 1s and the 8s rows
-    corners_coords = coords[class_ids == 0]
-    eights_coords = coords[class_ids == 1]
-    ones_coords = coords[class_ids == 2]
-    if len(corners_coords) >= 4:
-        corners_coords = corners_coords[:4]
+    eights_coords = coords[class_ids == 0]
+    ones_coords = coords[class_ids == 1]
     if len(eights_coords) >= 2:
         eights_coords = eights_coords[:2]
     if len(ones_coords) >= 2:
         ones_coords = ones_coords[:2]
     if len(ones_coords) == 2 and len(eights_coords) == 2:
         conf = boxes_sorted.conf.cpu().numpy()
-        eights_conf = conf[class_ids == 1]
+        eights_conf = conf[class_ids == 0]
         eights_conf = eights_conf[:2]
-        ones_conf = conf[class_ids == 2]
+        ones_conf = conf[class_ids == 1]
         ones_conf = ones_conf[:2]
         if(ones_conf[1] > eights_conf[1]):
             eights_coords = []
@@ -68,11 +64,10 @@ def detect_corners_and_orientation(path_to_img):
             ones_coords = []
     
     # get the coordinates of the middle point of the boxes
-    corners_coords = mid_point_of_boxes(corners_coords)
+    #corners_coords = mid_point_of_boxes(corners_coords)
     ones_coords = mid_point_of_boxes(ones_coords)
     eights_coords = mid_point_of_boxes(eights_coords)
-    return [corners_coords, ones_coords, eights_coords]
-
+    return [ones_coords, eights_coords]
 
 def distance(pt1, pt2):
     return (pt1[0]-pt2[0])**2+(pt1[1]-pt2[1])**2
@@ -129,8 +124,26 @@ def order_corners(corners, ones, eights):
     return None
 
 
-def detect_pieces(img, conf_score, iou_score):
-    results = pieces_model.predict(source = img, conf = conf_score, iou = iou_score, agnostic_nms = False)
+def remove_intersecting_boxes(coords):
+    new_coords = []
+    for (x1, y1, x2, y2) in coords:
+        if x1 > x2: x1, x2 = x2, x1
+        if y1 > y2: y1, y2 = y2, y1
+
+        valid = True
+        for (X1, Y1, X2, Y2) in new_coords:
+            non_overlap = (x2 <= X1) or (X2 <= x1) or (y2 <= Y1) or (Y2 <= y1)
+            if not non_overlap:  
+                valid = False
+                break
+        if valid:
+            new_coords.append((x1, y1, x2, y2))
+    return new_coords
+
+
+
+def detect_pieces_and_corners(img, conf_score, iou_score):
+    results = pieces_model.predict(source = img, conf = 0, iou = iou_score, agnostic_nms = False)
     r = results[0]
     boxes = r.boxes
     # Sorting the values of the boxes by confidence using torch
@@ -138,11 +151,20 @@ def detect_pieces(img, conf_score, iou_score):
     order = torch.argsort(conf_vals, descending = True)
     boxes_sorted = boxes[order]
     class_ids = boxes_sorted.cls.cpu().numpy()
+    corner_boxes = boxes_sorted[class_ids == 12]
+    corners = corner_boxes.xyxy.cpu().numpy()
+    corners = remove_intersecting_boxes(corners)    
+    if len(corners) > 4:
+        corners = corners[:4]
+    corner_points = mid_point_of_boxes(corners)
+    mask = boxes_sorted.conf.view(-1) >= conf_score
+    boxes_sorted = boxes_sorted[mask]
+    class_ids = boxes_sorted.cls.cpu().numpy()
     conf = boxes_sorted.conf.cpu().numpy()
     coords = boxes_sorted.xyxy.cpu().numpy()
     coords_split_cls = [coords[class_ids == i] for i in range(12)]
     conf_split_cls = [conf[class_ids == i] for i in range(12)]
-    return coords_split_cls, conf_split_cls
+    return coords_split_cls, conf_split_cls, corner_points
 
 
 def get_origin_point(point, original_shape, bl_y, bl_x, cropped_shape):
@@ -192,16 +214,22 @@ def get_point_in_board(point, shape, corners):
 def check_if_inside(y, x, h, w):
     return not (x > w or x < 0 or y > h or y < 0)
 
-
-def get_square_of_piece(coords, shape, corners):
+def get_base_midpoint(coords):
     x1, y1, x2, y2 = coords
-    base_midpoint = [(x1+x2) // 2, y2]
+    base_midpoint = [(x1+x2) // 2, y2*9/10 + y1/10]
+    return base_midpoint
+def get_square_of_piece(coords, shape, corners):
+    base_midpoint = get_base_midpoint(coords)
     #origin_point = get_origin_point(base_midpoint, shape, bl_y, bl_x, cropped_shape)
     warped_point = get_point_in_board(base_midpoint, shape, corners)
     maxW, maxH = get_dst_size(corners)
     x, y = warped_point
     if check_if_inside(y, x, maxH-1, maxW-1):
         x_ind, y_ind = int(8*x/(maxW-1)), int(8*y/(maxH-1))
+        if x_ind == 8:
+            x_ind = 7
+        if y_ind == 8:
+            y_ind = 7
         return x_ind, y_ind
     else:
         return None
@@ -223,23 +251,17 @@ def crop_rectangle(path_to_img, quad_pts, margin = 0):
     
 
 def main(path_to_img, conf_score, iou_score):
-    corners, ones, eights = detect_corners_and_orientation(path_to_img)
-    corners = order_corners(corners, ones, eights)
+    ones, eights = detect_corners_and_orientation(path_to_img)
     img = cv2.imread(path_to_img)
     #cropped_img, (bl_y, bl_x), cropped_shape = crop_rectangle(path_to_img, corners, margin=220)
-    pieces_coords, pieces_conf = detect_pieces(img, conf_score, iou_score)
+    pieces_coords, pieces_conf, corners = detect_pieces_and_corners(img, conf_score, iou_score)
+    corners = order_corners(corners, ones, eights)
     cls_to_piece_type = {0: "white-pawn",  1: "white-rook",  2: "white-knight", 3: "white-bishop", 4: "white-queen", 5: "white-king",
     6: "black-pawn", 7: "black-rook", 8: "black-knight", 9: "black-bishop", 10: "black-queen", 11: "black-king"}
     num_to_file = {0:"a", 1:"b", 2:"c", 3: "d", 4: "e", 5: "f", 6: "g",7: "h"}
     square_to_piece = defaultdict(list) # multi values dictionary
     square_to_piece_final = {}
     for i in range(12):
-        '''
-        if i == 1 or i == 7:
-            pieces_coords[i] = pieces_coords[i][:1]
-        elif i == 3 or i == 9:
-            pieces_coords[i] = pieces_coords[i][:8]
-        '''
         # build (coord, orig_idx) list while filtering
         kept = []
         for orig_j, piece_coord in enumerate(pieces_coords[i]):
@@ -249,8 +271,8 @@ def main(path_to_img, conf_score, iou_score):
 
         # cap
         piece_caps = {
-            0:8, 1:2, 2:2, 3:2, 4:1, 5:1,   # white: pawns, rooks, knights, bishops, queen, king
-            6:8, 7:2, 8:2, 9:2, 10:1, 11:1  # black: same order
+            0:8, 1:2, 2:2, 3:2, 4:1, 5:1,   # pawns, rooks, knights, bishops, queen, king
+            6:8, 7:2, 8:2, 9:2, 10:1, 11:1  
         }
         limit = piece_caps.get(i, 8)
         kept = kept[:limit]
@@ -273,6 +295,7 @@ def main(path_to_img, conf_score, iou_score):
         square_str = num_to_file[square[0]]+str(8-square[1])
         square_to_piece_final[square_str] = cls_to_piece_type[piece_with_max_conf[0]]
     return square_to_piece_final
+
 def pos_to_fen(pos_map, side_to_move):
     fen = ""
     piece_to_notation = {"black-bishop": "b","black-king": "k","black-knight": "n","black-pawn": "p","black-queen": "q","black-rook": "r",
@@ -294,4 +317,3 @@ def pos_to_fen(pos_map, side_to_move):
             fen += "/"
     fen += f" {side_to_move} KQkq - 0 0"
     return fen
-#print(pos_to_fen(main(create_file_path(0, 0), 0.2, 0.5)))

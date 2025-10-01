@@ -78,28 +78,6 @@ def num_of_incorrect_pieces(img_file_path, conf_score, iou_score):
                 cnt+=1
     return cnt
 
-def pos_to_fen(pos_map):
-    fen = ""
-    piece_to_notation = {"black-bishop": "b","black-king": "k","black-knight": "n","black-pawn": "p","black-queen": "q","black-rook": "r",
-                    "white-bishop": "B","white-king": "K","white-knight": "N","white-pawn": "P", "white-queen": "Q", "white-rook": "R"}
-    for row in range(8, 0, -1):
-        cnt_empty = 0
-        for col in ["a", "b", "c", "d", "e", "f", "g", "h"]:
-            piece = pos_map.get(col+str(row))
-            if piece is None:
-                cnt_empty += 1
-            else:
-                if(cnt_empty != 0):
-                    fen += str(cnt_empty)
-                    cnt_empty = 0
-                fen += piece_to_notation[piece]
-        if cnt_empty != 0:
-            fen += str(cnt_empty)
-        if row != 0:
-            fen += "/"
-    fen += " w KQkq - 0 0"
-    return fen
-
 def test_folder_accuracy(folder_num):
     folder_path = create_folder_path(folder_num)
     files = os.listdir(folder_path)
@@ -118,11 +96,14 @@ def test_folders_accuracy(folder_nums):
     sum = 0
     sum2 = 0
     sum3 = 0 
+    accuracies = []
     for i in folder_nums:
-        num_files, cnt, cnt2, _ = test_folder_accuracy(i)
+        num_files, cnt, cnt2, accuracy = test_folder_accuracy(i)
         sum +=cnt; sum2+=cnt2; sum3 += num_files
+        accuracies.append(accuracy)
     print(f"percentage of correct: {sum/sum3}")
     print(f"percentage of fewer than 1 mistakes: {sum2/sum3}")
+    print(accuracies)
 
 def print_folder_fen(folder_num):
     folder_path = create_folder_path(folder_num)
@@ -133,4 +114,5 @@ def print_folder_fen(folder_num):
     print(fens)
 
 if __name__ == "__main__":
-    print(test_folder_accuracy(33))
+    print(pos_to_fen(main(create_file_path(0, 33), 0.2, 0.3), "w"))
+    print(test_folders_accuracy([6, 33, 76]))

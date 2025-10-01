@@ -1,8 +1,8 @@
 import os
-def transform_coords(x, y, w, h):
+def transform_coords(x, y, w, h, length):
     center_x = x + w/2
     center_y = y + h/2
-    return center_x-0.01, center_y-0.01, 0.02, 0.02
+    return center_x-length/2, center_y-length/2, length, length
 
 
 def correct_boxes(input_file):
@@ -16,7 +16,7 @@ def correct_boxes(input_file):
         cls, x, y, w, h = parts
         x, y, w, h = map(float, (x, y, w, h))
 
-        x, y, w, h = transform_coords(x, y, w, h)
+        x, y, w, h = transform_coords(x, y, w, h, 0.2)
 
         new_lines.append(f"{cls} {x:.6f} {y:.6f} {w:.6f} {h:.6f}\n")    
     with open(input_file, "w") as f:
