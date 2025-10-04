@@ -114,5 +114,5 @@ def print_folder_fen(folder_num):
     print(fens)
 
 if __name__ == "__main__":
-    print(pos_to_fen(main(create_file_path(0, 33), 0.2, 0.3), "w"))
-    print(test_folders_accuracy([6, 33, 76]))
+    #print(test_folders_accuracy([6, 33, 76]))
+    print(pos_to_fen(main(create_file_path(40, 6), 0.2, 0.3), "w"))

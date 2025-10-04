@@ -6,7 +6,7 @@ import math
 import torch
 from collections import defaultdict
 model = YOLO(r"runs/detect/trainNano/weights/best.pt")
-pieces_model = YOLO(r"runs2/detect/train21/weights/best.pt")
+pieces_model = YOLO(r"runs2/detect/trainNano/weights/best.pt")
 
 def create_file_path(img_num, folder_num):
     if img_num<10:

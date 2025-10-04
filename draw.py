@@ -359,9 +359,5 @@ def draw_piece_detections(
         cv2.imshow("board (800x800)", disp); cv2.waitKey(0); cv2.destroyAllWindows()
 
     return disp, detections
-print(pos_to_fen(main(create_file_path(13, 19), 0.2, 0.5), "w"))
-draw_warped_point(create_file_path(13, 19))
-'''draw_warped_point(create_file_path(40, 6))
-print(pos_to_fen(main(create_file_path(40, 6),0.2, 0.3), "w"))
 for i in [6, 33, 76]:
-    save_warped_files(i, "warped imgs")'''
+    save_warped_files(i, "warped imgs")
