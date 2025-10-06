@@ -13,10 +13,7 @@ from torchvision.io import read_image
 
 
 class ChessRecognitionDataset(Dataset):
-    """ChessRecognitionDataset class.
 
-    The ChessRecognitionDataset class implements a custom pytorch dataset.
-    """
 
     def __init__(
         self,
@@ -24,14 +21,7 @@ class ChessRecognitionDataset(Dataset):
         split: str,
         transform: Union[Callable, None] = None,
     ) -> None:
-        """Initialize a ChessRecognitionDataset.
 
-        Args:
-            dataroot (str, Path): Path to the directory containing the Chess
-                                  Dataset.
-            transform (callable, optional): Transform to be applied on the
-                                            image samples of the dataset.
-        """
         super(ChessRecognitionDataset, self).__init__()
 
         self.dataroot = Path(dataroot)
@@ -74,17 +64,7 @@ class ChessRecognitionDataset(Dataset):
         return self.length
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Return a dataset sample.
 
-        Args:
-            index (int): Index of the sample to return.
-
-        Returns:
-            img (Tensor): A 3xHxW Tensor of the image corresponding to `index`.
-            img_anns (Tensor): A 64x13 Tensor containing the annotations for
-                               each of the chessboard's squares in one-hot
-                               encoding.
-        """
         # LOAD IMAGE
         img_id = self.split_img_ids[index]
         img_path = Path(
@@ -131,7 +111,6 @@ class ChessRecognitionDataset(Dataset):
 
         return (img, img_anns)
 
-    # ------------------------- YOLO v11 EXPORT ------------------------- #
     @staticmethod
     def export_yolo_v11(
         dataroot: Union[str, Path],
@@ -143,12 +122,7 @@ class ChessRecognitionDataset(Dataset):
         keep_images_without_boxes: bool = False,  # <-- NEW
         only_corners: bool = False,
     ) -> None:
-        """
-        Export dataset into a YOLO v11 folder structure with images and labels.
 
-        By default, images that end up with zero valid boxes are SKIPPED.
-        Set keep_images_without_boxes=True to keep them with empty label files.
-        """
         import math
         dataroot = Path(dataroot)
         out_root = Path(out_root)
@@ -557,10 +531,3 @@ class ChessRecognitionDataset(Dataset):
             f"Images processed: {images_processed}, saved: {images_saved}, "
             f"boxes drawn: {boxes_drawn}, labels missing images: {label_files_missing_images}"
         )
-
-ChessRecognitionDataset.visualize_yolo_labels(
-    dataroot=r"C:\Users\tomer\chess_imgs - Copy",
-    out_root=r"C:\Users\tomer\chess_imgs - Copy\viz2",
-    corners_size=75,
-    splits=("train", "val", "test"), 
-)
