@@ -359,4 +359,3 @@ def draw_piece_detections(
         cv2.imshow("board (800x800)", disp); cv2.waitKey(0); cv2.destroyAllWindows()
 
     return disp, detections
-draw_corners_with_names(create_file_path(13, 19))
